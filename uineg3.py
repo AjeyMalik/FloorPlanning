@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox, scrolledtext
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
-from negative.neg3 import FloorPlan  # Import from your original file
+from neg3 import FloorPlan  # Import from your original file
 import json
 from tkinter import filedialog
 
@@ -145,7 +145,7 @@ class FloorPlanGUI:
         ttk.Button(button_frame, text="Clear All", command=self.clear_regions).pack(side=tk.LEFT, padx=2)
 
     def init_rooms_screen(self):
-        """Initialize the rooms screen"""
+        """Initialize the rooms screen with bulk addition functionality"""
         frame = ttk.Frame(self.content_frame)
         self.screens["rooms"] = frame
 
@@ -182,36 +182,67 @@ class FloorPlanGUI:
         rooms_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.rooms_tree.config(yscrollcommand=rooms_scrollbar.set)
 
-        # Room input frame
-        input_frame = ttk.Frame(frame)
-        input_frame.pack(fill=tk.X, pady=10)
+        # Single Room input frame
+        single_input_frame = ttk.LabelFrame(frame, text="Add Single Room", padding=10)
+        single_input_frame.pack(fill=tk.X, pady=5)
 
-        # Input fields
-        ttk.Label(input_frame, text="Name:").grid(row=0, column=0, padx=5, sticky=tk.W)
+        # Input fields for single room
+        ttk.Label(single_input_frame, text="Name:").grid(row=0, column=0, padx=5, sticky=tk.W)
         self.room_name_var = tk.StringVar()
-        ttk.Entry(input_frame, textvariable=self.room_name_var, width=15).grid(row=0, column=1, padx=5)
+        ttk.Entry(single_input_frame, textvariable=self.room_name_var, width=15).grid(row=0, column=1, padx=5)
 
-        ttk.Label(input_frame, text="Width:").grid(row=0, column=2, padx=5, sticky=tk.W)
+        ttk.Label(single_input_frame, text="Width:").grid(row=0, column=2, padx=5, sticky=tk.W)
         self.room_width_var = tk.StringVar()
-        ttk.Entry(input_frame, textvariable=self.room_width_var, width=10).grid(row=0, column=3, padx=5)
+        ttk.Entry(single_input_frame, textvariable=self.room_width_var, width=10).grid(row=0, column=3, padx=5)
 
-        ttk.Label(input_frame, text="Height:").grid(row=0, column=4, padx=5, sticky=tk.W)
+        ttk.Label(single_input_frame, text="Height:").grid(row=0, column=4, padx=5, sticky=tk.W)
         self.room_height_var = tk.StringVar()
-        ttk.Entry(input_frame, textvariable=self.room_height_var, width=10).grid(row=0, column=5, padx=5)
+        ttk.Entry(single_input_frame, textvariable=self.room_height_var, width=10).grid(row=0, column=5, padx=5)
 
-        ttk.Label(input_frame, text="Max Expansion:").grid(row=0, column=6, padx=5, sticky=tk.W)
+        ttk.Label(single_input_frame, text="Max Expansion:").grid(row=0, column=6, padx=5, sticky=tk.W)
         self.room_max_exp_var = tk.StringVar()
-        ttk.Entry(input_frame, textvariable=self.room_max_exp_var, width=10).grid(row=0, column=7, padx=5)
+        ttk.Entry(single_input_frame, textvariable=self.room_max_exp_var, width=10).grid(row=0, column=7, padx=5)
+
+        # Single room button
+        ttk.Button(single_input_frame, text="Add Room", command=self.add_room).grid(row=0, column=8, padx=10)
+
+        # Bulk Room input frame
+        bulk_input_frame = ttk.LabelFrame(frame, text="Add Multiple Rooms", padding=10)
+        bulk_input_frame.pack(fill=tk.X, pady=5)
+
+        # Input fields for bulk rooms
+        ttk.Label(bulk_input_frame, text="Base Name:").grid(row=0, column=0, padx=5, sticky=tk.W)
+        self.bulk_room_name_var = tk.StringVar()
+        ttk.Entry(bulk_input_frame, textvariable=self.bulk_room_name_var, width=15).grid(row=0, column=1, padx=5)
+
+        ttk.Label(bulk_input_frame, text="Quantity:").grid(row=0, column=2, padx=5, sticky=tk.W)
+        self.bulk_room_quantity_var = tk.StringVar()
+        ttk.Entry(bulk_input_frame, textvariable=self.bulk_room_quantity_var, width=10).grid(row=0, column=3, padx=5)
+
+        ttk.Label(bulk_input_frame, text="Width:").grid(row=0, column=4, padx=5, sticky=tk.W)
+        self.bulk_room_width_var = tk.StringVar()
+        ttk.Entry(bulk_input_frame, textvariable=self.bulk_room_width_var, width=10).grid(row=0, column=5, padx=5)
+
+        ttk.Label(bulk_input_frame, text="Height:").grid(row=0, column=6, padx=5, sticky=tk.W)
+        self.bulk_room_height_var = tk.StringVar()
+        ttk.Entry(bulk_input_frame, textvariable=self.bulk_room_height_var, width=10).grid(row=0, column=7, padx=5)
+
+        ttk.Label(bulk_input_frame, text="Max Expansion:").grid(row=0, column=8, padx=5, sticky=tk.W)
+        self.bulk_room_max_exp_var = tk.StringVar()
+        ttk.Entry(bulk_input_frame, textvariable=self.bulk_room_max_exp_var, width=10).grid(row=0, column=9, padx=5)
+
+        # Bulk room button
+        ttk.Button(bulk_input_frame, text="Add Multiple Rooms", command=self.add_bulk_rooms).grid(row=0, column=10,
+                                                                                                  padx=10)
+
+        # Room management buttons frame
+        management_frame = ttk.Frame(frame)
+        management_frame.pack(fill=tk.X, pady=10)
 
         # Buttons
-        button_frame = ttk.Frame(input_frame)
-        button_frame.grid(row=0, column=8, padx=20)
-
-        ttk.Button(button_frame, text="Add Room", command=self.add_room).pack(side=tk.LEFT, padx=2)
-        ttk.Button(button_frame, text="Remove Selected", command=self.remove_room).pack(side=tk.LEFT, padx=2)
-        # In the button_frame section, add this line:
-        ttk.Button(button_frame, text="Edit Selected", command=self.edit_room).pack(side=tk.LEFT, padx=2)
-        ttk.Button(button_frame, text="Clear All", command=self.clear_rooms).pack(side=tk.LEFT, padx=2)
+        ttk.Button(management_frame, text="Remove Selected", command=self.remove_room).pack(side=tk.LEFT, padx=5)
+        ttk.Button(management_frame, text="Edit Selected", command=self.edit_room).pack(side=tk.LEFT, padx=5)
+        ttk.Button(management_frame, text="Clear All", command=self.clear_rooms).pack(side=tk.LEFT, padx=5)
 
     def init_adjacency_screen(self):
         """Initialize the adjacency screen"""
@@ -943,6 +974,74 @@ class FloorPlanGUI:
         # Focus on name field and select all text
         name_entry.focus()
         name_entry.select_range(0, tk.END)
+
+    def add_bulk_rooms(self):
+        """Add multiple rooms with sequential naming"""
+        try:
+            base_name = self.bulk_room_name_var.get().strip()
+            quantity = int(self.bulk_room_quantity_var.get())
+            width = int(self.bulk_room_width_var.get())
+            height = int(self.bulk_room_height_var.get())
+            max_exp = int(self.bulk_room_max_exp_var.get())
+
+            # Validation
+            if not base_name:
+                messagebox.showerror("Error", "Please enter a base room name")
+                return
+
+            if quantity <= 0:
+                messagebox.showerror("Error", "Quantity must be positive")
+                return
+
+            if width <= 0 or height <= 0:
+                messagebox.showerror("Error", "Width and height must be positive")
+                return
+
+            if max_exp < 0:
+                messagebox.showerror("Error", "Max expansion cannot be negative")
+                return
+
+            # Get existing room names to check for conflicts
+            existing_names = {self.rooms_tree.item(item)['text'] for item in self.rooms_tree.get_children()}
+
+            # Generate room names and check for conflicts
+            new_room_names = []
+            for i in range(1, quantity + 1):
+                room_name = f"{base_name}{i}"
+                if room_name in existing_names:
+                    messagebox.showerror("Error", f"Room name '{room_name}' already exists")
+                    return
+                new_room_names.append(room_name)
+
+            # Add all rooms
+            added_count = 0
+            for room_name in new_room_names:
+                try:
+                    # Add to tree
+                    item = self.rooms_tree.insert("", "end", text=room_name)
+                    self.rooms_tree.set(item, "Width", width)
+                    self.rooms_tree.set(item, "Height", height)
+                    self.rooms_tree.set(item, "Max Expansion", max_exp)
+                    added_count += 1
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to add room '{room_name}': {str(e)}")
+                    break
+
+            if added_count > 0:
+                # Clear input fields
+                self.bulk_room_name_var.set("")
+                self.bulk_room_quantity_var.set("")
+                self.bulk_room_width_var.set("")
+                self.bulk_room_height_var.set("")
+                self.bulk_room_max_exp_var.set("")
+
+                # Refresh room combos
+                self.refresh_room_combos()
+
+                messagebox.showinfo("Success", f"Successfully added {added_count} rooms")
+
+        except ValueError:
+            messagebox.showerror("Error", "Please enter valid numbers")
 
     def save_room_changes(self):
         """Save the edited room data"""
