@@ -1291,6 +1291,10 @@ class FloorPlanGUI:
             )
 
             if success:
+                self.floor_plan.compact_rooms()
+                self.floor_plan.enforce_minimum_adjacency()
+                self.floor_plan.compact_rooms()
+                
                 messagebox.showinfo("Success", "Floor plan generated successfully!")
                 self.update_output_display()
             else:
