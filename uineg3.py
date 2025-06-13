@@ -6,6 +6,11 @@ import numpy as np
 from neg3 import FloorPlan  # Import from your original file
 import json
 from tkinter import filedialog
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Rectangle
+from matplotlib.lines import Line2D
+import matplotlib.patches as mpatches
 
 class FloorPlanGUI:
     def __init__(self, root):
@@ -1353,205 +1358,772 @@ class FloorPlanGUI:
         self.show_screen("output")
 
     def visualize_floor_plan(self):
-        """Create matplotlib visualization of the floor plan with simplified constraint visualization"""
+        """Create matplotlib visualization of the floor plan optimized for large numbers of rooms"""
         if not self.floor_plan:
             return
 
-        # Draw floor shape
+        # Clear the axis
+        self.ax.clear()
+
+        # Calculate dynamic sizing based on number of rooms and floor dimensions
+        num_rooms = len(self.floor_plan.rooms)
+        floor_area = self.floor_plan.floor_width * self.floor_plan.floor_height
+        avg_room_area = floor_area / max(num_rooms, 1)
+
+        # Dynamic font sizing based on room count and average room size
+        base_font_size = max(4, min(12, int(np.sqrt(avg_room_area) / 3)))
+        title_font_size = max(8, min(16, base_font_size + 4))
+
+        # Draw floor shape with reduced opacity for large plans
+        floor_alpha = max(0.1, min(0.3, 1.0 / np.sqrt(num_rooms / 10 + 1)))
         for region in self.floor_plan.floor_regions:
-            rect = plt.Rectangle(
+            rect = Rectangle(
                 (region['x'], region['y']),
                 region['width'],
                 region['height'],
-                linewidth=2,
+                linewidth=max(0.5, min(2, 10 / np.sqrt(num_rooms))),
                 edgecolor='black',
                 facecolor='lightgray',
-                alpha=0.3,
+                alpha=floor_alpha,
                 linestyle='--'
             )
             self.ax.add_patch(rect)
 
-        # Draw rooms with simplified color coding
-        colors = plt.cm.tab20(np.linspace(0, 1, len(self.floor_plan.rooms)))
+        # Use a more distinguishable color palette for many rooms
+        if num_rooms <= 20:
+            colors = plt.cm.tab20(np.linspace(0, 1, num_rooms))
+        else:
+            # For large numbers, use HSV color space for better distribution
+            colors = plt.cm.hsv(np.linspace(0, 1, num_rooms))
 
-        # Calculate constraint violations for room coloring
-        room_violations = {}
-        for room in self.floor_plan.rooms:
-            violations = 0
-            # Check non-adjacency violations
-            if room.name in self.floor_plan.non_adjacency_graph:
-                for non_adj_room_name in self.floor_plan.non_adjacency_graph[room.name]:
-                    non_adj_room = next(r for r in self.floor_plan.rooms if r.name == non_adj_room_name)
-                    if room.has_shared_wall_with(non_adj_room):
-                        violations += 1
-            room_violations[room.name] = violations
+        # Calculate constraint violations efficiently
+        room_violations = self._calculate_room_violations()
 
+        # Determine room styling based on count
+        show_room_details = num_rooms <= 50
+        show_expansion_info = num_rooms <= 30
+        room_line_width = max(0.3, min(2, 20 / np.sqrt(num_rooms)))
+        violation_line_width = max(0.5, min(3, 30 / np.sqrt(num_rooms)))
+
+        # Draw rooms with adaptive styling
         for i, room in enumerate(self.floor_plan.rooms):
             if room.x is not None and room.y is not None:
-                # Simple color coding: red for violations, normal color otherwise
+                # Color coding for violations
                 if room_violations[room.name] > 0:
                     face_color = 'lightcoral'
                     edge_color = 'darkred'
-                    linewidth = 3
+                    linewidth = violation_line_width
+                    alpha = 0.8
                 else:
                     face_color = colors[i]
                     edge_color = 'black'
-                    linewidth = 1
+                    linewidth = room_line_width
+                    alpha = max(0.4, min(0.7, 1.0 / np.sqrt(num_rooms / 20 + 1)))
 
-                rect = plt.Rectangle(
+                rect = Rectangle(
                     (room.x, room.y),
                     room.width,
                     room.height,
                     linewidth=linewidth,
                     edgecolor=edge_color,
                     facecolor=face_color,
-                    alpha=0.7
+                    alpha=alpha
                 )
                 self.ax.add_patch(rect)
 
-                # Room text with size info
-                original_size = f"{room.original_width}x{room.original_height}"
+                # Adaptive text display
+                self._draw_room_text(room, base_font_size, show_room_details, show_expansion_info)
+
+        # Simplified constraint visualization for large plans
+        constraint_stats = self._draw_constraints_optimized(num_rooms)
+
+        # Set limits and aspect
+        self._set_plot_limits()
+
+        # Adaptive title and labels
+        title = self._generate_adaptive_title(constraint_stats, num_rooms)
+        self.ax.set_title(title, fontsize=title_font_size, fontweight='bold')
+
+        # Show axes labels only for smaller plans
+        if num_rooms <= 100:
+            self.ax.set_xlabel('Width', fontsize=max(8, base_font_size))
+            self.ax.set_ylabel('Height', fontsize=max(8, base_font_size))
+
+        # Adaptive grid
+        grid_alpha = max(0.1, min(0.3, 1.0 / np.sqrt(num_rooms / 25 + 1)))
+        self.ax.grid(True, alpha=grid_alpha)
+
+        # Smart legend and summary
+        self._create_adaptive_legend_and_summary(constraint_stats, num_rooms, base_font_size)
+
+        plt.tight_layout()
+
+        # Add interactive features for room identification
+        self._add_room_identification_features(num_rooms)
+
+    def _add_room_identification_features(self, num_rooms):
+        """Add interactive features to help identify rooms"""
+
+        # Add click handler for room identification
+        def on_click(event):
+            if event.inaxes != self.ax:
+                return
+
+            # Find room at click location
+            clicked_room = None
+            for room in self.floor_plan.rooms:
+                if (room.x is not None and room.y is not None and
+                        room.x <= event.xdata <= room.x + room.width and
+                        room.y <= event.ydata <= room.y + room.height):
+                    clicked_room = room
+                    break
+
+            if clicked_room:
+                room_id = self._get_room_id(clicked_room)
+                info_text = f"Room {room_id}: {clicked_room.name}"
+                if hasattr(clicked_room, 'width'):
+                    info_text += f"\nSize: {clicked_room.width}x{clicked_room.height}"
+                if hasattr(clicked_room, 'original_width'):
+                    info_text += f"\nOriginal: {clicked_room.original_width}x{clicked_room.original_height}"
+
+                # Update title with room info
+                current_title = self.ax.get_title()
+                if " | Selected: " in current_title:
+                    current_title = current_title.split(" | Selected: ")[0]
+                self.ax.set_title(f"{current_title} | Selected: {info_text.replace(chr(10), ', ')}")
+                plt.draw()
+
+        # Connect the click handler
+        if hasattr(self, 'fig'):
+            self.fig.canvas.mpl_connect('button_press_event', on_click)
+
+        # For large plans, also create a room index
+        if num_rooms > 50:
+            self._create_room_index()
+
+    def _create_room_index(self):
+        """Create a room index for large floor plans"""
+        # Ensure all rooms are mapped before creating index
+        self._ensure_all_rooms_mapped()
+
+        print(f"\n=== ROOM INDEX ({len(self.floor_plan.rooms)} rooms) ===")
+
+        # Group rooms by first letter for better organization
+        room_groups = {}
+        for room in self.floor_plan.rooms:
+            first_letter = room.name[0].upper()
+            if first_letter not in room_groups:
+                room_groups[first_letter] = []
+            room_id = self._get_room_id(room)
+            room_groups[first_letter].append((room_id, room.name, room.width, room.height))
+
+        # Print organized index
+        for letter in sorted(room_groups.keys()):
+            print(f"\n{letter}:")
+            # Sort by room ID within each letter group
+            for room_id, name, width, height in sorted(room_groups[letter]):
+                print(f"  {room_id:3d}: {name} ({width}x{height})")
+
+        print(f"\nTotal: {len(self.floor_plan.rooms)} rooms")
+        print("Click on any room in the plot to see its details in the title.")
+
+    def get_room_by_id(self, room_id):
+        """Helper method to get room by ID number"""
+        if not hasattr(self, '_room_id_map'):
+            self._room_id_map = {}
+
+        # Ensure all rooms are mapped
+        if len(self._room_id_map) != len(self.floor_plan.rooms):
+            self._ensure_all_rooms_mapped()
+
+        # Reverse lookup
+        for room_name, rid in self._room_id_map.items():
+            if rid == room_id:
+                return next((r for r in self.floor_plan.rooms if r.name == room_name), None)
+        return None
+
+    def _ensure_all_rooms_mapped(self):
+        """Ensure all rooms have ID mappings"""
+        existing_ids = set(self._room_id_map.values())
+        next_id = 1
+
+        for room in self.floor_plan.rooms:
+            if room.name not in self._room_id_map:
+                while next_id in existing_ids:
+                    next_id += 1
+                self._room_id_map[room.name] = next_id
+                existing_ids.add(next_id)
+                next_id += 1
+
+    def print_room_list(self):
+        """Print a complete list of rooms with their IDs - useful for debugging"""
+        print(f"\n=== COMPLETE ROOM LIST ===")
+        for i, room in enumerate(self.floor_plan.rooms, 1):
+            print(f"{i:3d}: {room.name} - Size: {room.width}x{room.height} - Position: ({room.x}, {room.y})")
+        print(f"Total: {len(self.floor_plan.rooms)} rooms")
+
+    def _calculate_room_violations(self):
+        """Efficiently calculate constraint violations for all rooms"""
+        room_violations = {}
+
+        for room in self.floor_plan.rooms:
+            violations = 0
+            if room.name in self.floor_plan.non_adjacency_graph:
+                for non_adj_room_name in self.floor_plan.non_adjacency_graph[room.name]:
+                    non_adj_room = next((r for r in self.floor_plan.rooms if r.name == non_adj_room_name), None)
+                    if non_adj_room and room.has_shared_wall_with(non_adj_room):
+                        violations += 1
+            room_violations[room.name] = violations
+
+        return room_violations
+
+    def _draw_room_text(self, room, base_font_size, show_details, show_expansion):
+        """Draw room text with adaptive detail level and identification methods"""
+        num_rooms = len(self.floor_plan.rooms)
+
+        # Calculate if room is large enough for text
+        room_area = room.width * room.height
+        min_area_for_text = max(4, num_rooms / 50)  # Adaptive minimum area
+
+        if base_font_size < 4 or room_area < min_area_for_text:
+            # For very small rooms, use room ID numbers instead of names
+            room_id = self._get_room_id(room)
+            if room_area >= 2:  # Only show ID if room is not tiny
+                self.ax.text(
+                    room.x + room.width / 2,
+                    room.y + room.height / 2,
+                    str(room_id),
+                    ha='center',
+                    va='center',
+                    fontsize=max(6, base_font_size),
+                    fontweight='bold',
+                    color='black',
+                    clip_on=True
+                )
+            return
+
+        # For larger rooms, show more detail
+        display_text = self._get_room_display_text(room, show_details, show_expansion)
+
+        # Adaptive text box styling
+        bbox_alpha = max(0.6, min(0.9, 1.0 / np.sqrt(num_rooms / 30 + 1)))
+
+        self.ax.text(
+            room.x + room.width / 2,
+            room.y + room.height / 2,
+            display_text,
+            ha='center',
+            va='center',
+            fontsize=base_font_size,
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=bbox_alpha),
+            clip_on=True
+        )
+
+    def _get_room_id(self, room):
+        """Get a unique ID number for the room"""
+        if not hasattr(self, '_room_id_map'):
+            self._room_id_map = {}
+
+        # If room not in map, add it
+        if room.name not in self._room_id_map:
+            # Add all rooms that aren't already mapped
+            existing_ids = set(self._room_id_map.values())
+            next_id = 1
+
+            for r in self.floor_plan.rooms:
+                if r.name not in self._room_id_map:
+                    # Find next available ID
+                    while next_id in existing_ids:
+                        next_id += 1
+                    self._room_id_map[r.name] = next_id
+                    existing_ids.add(next_id)
+                    next_id += 1
+
+        return self._room_id_map[room.name]
+
+    def _get_room_display_text(self, room, show_details, show_expansion):
+        """Get the display text for a room based on detail level"""
+        num_rooms = len(self.floor_plan.rooms)
+
+        if num_rooms > 200:
+            # Very large plans: just room ID
+            return str(self._get_room_id(room))
+        elif num_rooms > 100:
+            # Large plans: ID + abbreviated name
+            room_id = self._get_room_id(room)
+            short_name = room.name[:8] + "..." if len(room.name) > 8 else room.name
+            return f"{room_id}\n{short_name}"
+        elif num_rooms > 50:
+            # Medium plans: ID + name
+            room_id = self._get_room_id(room)
+            return f"{room_id}: {room.name}"
+        else:
+            # Small plans: full detail
+            display_text = room.name
+            if show_details:
                 current_size = f"{room.width}x{room.height}"
                 display_text = f"{room.name}\n{current_size}"
 
-                # Add expansion info if expanded
-                if room.width != room.original_width or room.height != room.original_height:
+                if show_expansion and (room.width != room.original_width or room.height != room.original_height):
+                    original_size = f"{room.original_width}x{room.original_height}"
                     if room.rotated:
                         display_text += f"\n(from {room.original_height}x{room.original_width})"
                     else:
                         display_text += f"\n(from {original_size})"
+            return display_text
 
-                self.ax.text(
-                    room.x + room.width / 2,
-                    room.y + room.height / 2,
-                    display_text,
-                    ha='center',
-                    va='center',
-                    fontsize=8,
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9)
-                )
+    def _draw_constraints_optimized(self, num_rooms):
+        """Draw constraint lines with optimization for large room counts"""
+        # For very large plans, skip or simplify constraint visualization
+        if num_rooms > 200:
+            return self._calculate_constraint_stats_only()
 
-        # Simplified constraint visualization using non-GUI logic
-        adjacent_pairs = []
-        unsatisfied_adjacencies = []
-        non_adjacency_satisfied = []
-        non_adjacency_violated = []
+        constraint_stats = {
+            'adjacent_pairs': [],
+            'unsatisfied_adjacencies': [],
+            'non_adjacency_satisfied': [],
+            'non_adjacency_violated': []
+        }
+
+        # Adaptive line styling
+        line_alpha = max(0.3, min(0.8, 1.0 / np.sqrt(num_rooms / 20 + 1)))
+        line_width = max(0.5, min(2, 15 / np.sqrt(num_rooms)))
+
+        # Show fewer constraint lines for very large plans
+        show_all_constraints = num_rooms <= 100
+        show_violations_only = num_rooms > 100
 
         # Process adjacency relationships
         for room1_name, room2_name in self.floor_plan.adjacency_graph.edges:
-            room1 = next(r for r in self.floor_plan.rooms if r.name == room1_name)
-            room2 = next(r for r in self.floor_plan.rooms if r.name == room2_name)
+            room1 = next((r for r in self.floor_plan.rooms if r.name == room1_name), None)
+            room2 = next((r for r in self.floor_plan.rooms if r.name == room2_name), None)
 
-            if room1.x is not None and room2.x is not None:
+            if room1 and room2 and room1.x is not None and room2.x is not None:
                 center1 = (room1.x + room1.width / 2, room1.y + room1.height / 2)
                 center2 = (room2.x + room2.width / 2, room2.y + room2.height / 2)
 
                 if room1.has_shared_wall_with(room2):
-                    # Satisfied adjacency - green solid line
-                    self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'g-',
-                                 linewidth=2, alpha=0.8)
-                    adjacent_pairs.append((room1_name, room2_name))
+                    constraint_stats['adjacent_pairs'].append((room1_name, room2_name))
+                    if show_all_constraints:
+                        self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'g-',
+                                     linewidth=line_width, alpha=line_alpha)
                 else:
-                    # Unsatisfied adjacency - red dashed line
-                    self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'r--',
-                                 linewidth=2, alpha=0.9)
-                    unsatisfied_adjacencies.append((room1_name, room2_name))
+                    constraint_stats['unsatisfied_adjacencies'].append((room1_name, room2_name))
+                    if show_all_constraints or show_violations_only:
+                        self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'r--',
+                                     linewidth=line_width * 1.2, alpha=min(0.9, line_alpha * 1.5))
 
         # Process non-adjacency relationships
         for room1_name, room2_name in self.floor_plan.non_adjacency_graph.edges:
-            room1 = next(r for r in self.floor_plan.rooms if r.name == room1_name)
-            room2 = next(r for r in self.floor_plan.rooms if r.name == room2_name)
+            room1 = next((r for r in self.floor_plan.rooms if r.name == room1_name), None)
+            room2 = next((r for r in self.floor_plan.rooms if r.name == room2_name), None)
 
-            if room1.x is not None and room2.x is not None:
+            if room1 and room2 and room1.x is not None and room2.x is not None:
                 center1 = (room1.x + room1.width / 2, room1.y + room1.height / 2)
                 center2 = (room2.x + room2.width / 2, room2.y + room2.height / 2)
 
-                # Always show coral blue dotted line for non-adjacency constraints
-                self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]],
-                             color='blue', linewidth=2, linestyle=':', alpha=0.7)
-
                 if room1.has_shared_wall_with(room2):
-                    # Violation - rooms should not be adjacent but they are
-                    # Add additional red line to show violation
+                    # Violation - always show these
+                    constraint_stats['non_adjacency_violated'].append((room1_name, room2_name))
+
+                    # Violation lines and markers
                     self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'red',
-                                 linewidth=3, linestyle=':', alpha=0.8)
-                    non_adjacency_violated.append((room1_name, room2_name))
+                                 linewidth=line_width * 1.5, linestyle=':', alpha=min(0.9, line_alpha * 1.5))
 
-                    # Add warning symbols at room centers
-                    self.ax.plot(center1[0], center1[1], 'rX', markersize=12, alpha=0.9)
-                    self.ax.plot(center2[0], center2[1], 'rX', markersize=12, alpha=0.9)
+                    # Show warning markers only for manageable numbers
+                    if num_rooms <= 150:
+                        marker_size = max(4, min(12, 60 / np.sqrt(num_rooms)))
+                        self.ax.plot(center1[0], center1[1], 'rX', markersize=marker_size, alpha=0.9)
+                        self.ax.plot(center2[0], center2[1], 'rX', markersize=marker_size, alpha=0.9)
                 else:
-                    # Satisfied - rooms are not adjacent as required
-                    non_adjacency_satisfied.append((room1_name, room2_name))
+                    constraint_stats['non_adjacency_satisfied'].append((room1_name, room2_name))
+                    if show_all_constraints:
+                        self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]],
+                                     color='blue', linewidth=line_width, linestyle=':', alpha=line_alpha * 0.7)
 
-        # Set limits and labels
+        return constraint_stats
+
+    def _calculate_constraint_stats_only(self):
+        """Calculate constraint statistics without drawing (for very large plans)"""
+        constraint_stats = {
+            'adjacent_pairs': [],
+            'unsatisfied_adjacencies': [],
+            'non_adjacency_satisfied': [],
+            'non_adjacency_violated': []
+        }
+
+        # Just calculate stats without drawing
+        for room1_name, room2_name in self.floor_plan.adjacency_graph.edges:
+            room1 = next((r for r in self.floor_plan.rooms if r.name == room1_name), None)
+            room2 = next((r for r in self.floor_plan.rooms if r.name == room2_name), None)
+
+            if room1 and room2 and room1.x is not None and room2.x is not None:
+                if room1.has_shared_wall_with(room2):
+                    constraint_stats['adjacent_pairs'].append((room1_name, room2_name))
+                else:
+                    constraint_stats['unsatisfied_adjacencies'].append((room1_name, room2_name))
+
+        for room1_name, room2_name in self.floor_plan.non_adjacency_graph.edges:
+            room1 = next((r for r in self.floor_plan.rooms if r.name == room1_name), None)
+            room2 = next((r for r in self.floor_plan.rooms if r.name == room2_name), None)
+
+            if room1 and room2 and room1.x is not None and room2.x is not None:
+                if room1.has_shared_wall_with(room2):
+                    constraint_stats['non_adjacency_violated'].append((room1_name, room2_name))
+                else:
+                    constraint_stats['non_adjacency_satisfied'].append((room1_name, room2_name))
+
+        return constraint_stats
+
+    def _set_plot_limits(self):
+        """Set plot limits with padding"""
         max_width = self.floor_plan.floor_width
         max_height = self.floor_plan.floor_height
-        self.ax.set_xlim(-1, max_width + 1)
-        self.ax.set_ylim(-1, max_height + 1)
+
+        # Adaptive padding based on floor size
+        padding = max(1, min(5, max(max_width, max_height) * 0.02))
+
+        self.ax.set_xlim(-padding, max_width + padding)
+        self.ax.set_ylim(-padding, max_height + padding)
         self.ax.set_aspect('equal')
 
-        # Simplified title
-        title = f'Floor Plan - Adjacency: {len(adjacent_pairs)}/{len(self.floor_plan.adjacency_graph.edges)}'
-        if len(self.floor_plan.non_adjacency_graph.edges) > 0:
-            title += f', Non-Adjacency: {len(non_adjacency_satisfied)}/{len(self.floor_plan.non_adjacency_graph.edges)} satisfied'
+    def _generate_adaptive_title(self, constraint_stats, num_rooms):
+        """Generate title that adapts to room count"""
+        if num_rooms <= 50:
+            # Detailed title for smaller plans
+            title = f'Floor Plan ({num_rooms} rooms) - '
+            title += f'Adjacency: {len(constraint_stats["adjacent_pairs"])}/{len(self.floor_plan.adjacency_graph.edges)}'
+            if len(self.floor_plan.non_adjacency_graph.edges) > 0:
+                title += f', Non-Adjacency: {len(constraint_stats["non_adjacency_satisfied"])}/{len(self.floor_plan.non_adjacency_graph.edges)} satisfied'
+        else:
+            # Simplified title for large plans
+            violations = len(constraint_stats["unsatisfied_adjacencies"]) + len(
+                constraint_stats["non_adjacency_violated"])
+            if violations > 0:
+                title = f'Floor Plan ({num_rooms} rooms) - {violations} constraint violations'
+            else:
+                title = f'Floor Plan ({num_rooms} rooms) - All constraints satisfied'
 
-        self.ax.set_title(title, fontsize=11, fontweight='bold')
-        self.ax.set_xlabel('Width')
-        self.ax.set_ylabel('Height')
-        self.ax.grid(True, alpha=0.3)
+        return title
 
-        # Simplified legend
+    def _create_adaptive_legend_and_summary(self, constraint_stats, num_rooms, font_size):
+        """Create legend and summary that adapt to room count"""
+
+        # Skip detailed legend for very large plans
+        if num_rooms > 200:
+            self._create_simple_summary(constraint_stats, font_size)
+            return
+
+        # Create legend elements based on what's actually shown
         legend_elements = []
 
-        if adjacent_pairs:
-            legend_elements.append(plt.Line2D([0], [0], color='green', linewidth=2,
-                                              label=f'Adjacent (satisfied): {len(adjacent_pairs)}'))
+        if num_rooms <= 100:  # Full legend for moderate sizes
+            if constraint_stats['adjacent_pairs']:
+                legend_elements.append(Line2D([0], [0], color='green', linewidth=2,
+                                              label=f'Adjacent (satisfied): {len(constraint_stats["adjacent_pairs"])}'))
 
-        if unsatisfied_adjacencies:
-            legend_elements.append(plt.Line2D([0], [0], color='red', linewidth=2,
+            if constraint_stats['unsatisfied_adjacencies']:
+                legend_elements.append(Line2D([0], [0], color='red', linewidth=2,
                                               linestyle='--', alpha=0.9,
-                                              label=f'Adjacent (unsatisfied): {len(unsatisfied_adjacencies)}'))
+                                              label=f'Adjacent (unsatisfied): {len(constraint_stats["unsatisfied_adjacencies"])}'))
 
-        # Always show non-adjacency constraint line in legend if constraints exist
-        if len(self.floor_plan.non_adjacency_graph.edges) > 0:
-            legend_elements.append(plt.Line2D([0], [0], color='lightcoral', linewidth=2,
+            if len(self.floor_plan.non_adjacency_graph.edges) > 0:
+                legend_elements.append(Line2D([0], [0], color='blue', linewidth=2,
                                               linestyle=':', alpha=0.7,
                                               label=f'Non-adjacent constraint: {len(self.floor_plan.non_adjacency_graph.edges)}'))
 
-        if non_adjacency_violated:
-            legend_elements.append(plt.Line2D([0], [0], color='red', linewidth=3,
+            if constraint_stats['non_adjacency_violated']:
+                legend_elements.append(Line2D([0], [0], color='red', linewidth=3,
                                               linestyle=':', alpha=0.8,
-                                              label=f'Non-adjacent (VIOLATED): {len(non_adjacency_violated)}'))
-            legend_elements.append(plt.Line2D([0], [0], marker='X', color='red',
-                                              linewidth=0, markersize=8, alpha=0.9,
-                                              label='Violation markers'))
+                                              label=f'Non-adjacent (VIOLATED): {len(constraint_stats["non_adjacency_violated"])}'))
 
-        if legend_elements:
+        else:  # Simplified legend for larger plans
+            violations = len(constraint_stats["unsatisfied_adjacencies"]) + len(
+                constraint_stats["non_adjacency_violated"])
+            if violations > 0:
+                legend_elements.append(Line2D([0], [0], color='red', linewidth=2,
+                                              label=f'Constraint violations: {violations}'))
+
+            satisfied = len(constraint_stats["adjacent_pairs"]) + len(constraint_stats["non_adjacency_satisfied"])
+            if satisfied > 0:
+                legend_elements.append(Line2D([0], [0], color='green', linewidth=2,
+                                              label=f'Constraints satisfied: {satisfied}'))
+
+        # Position legend appropriately
+        if legend_elements and num_rooms <= 150:
             self.ax.legend(handles=legend_elements, loc='upper left',
-                           bbox_to_anchor=(1.02, 1), borderaxespad=0)
+                           bbox_to_anchor=(1.02, 1), borderaxespad=0,
+                           fontsize=max(6, font_size - 2))
 
-        # Simplified summary text
-        if len(self.floor_plan.adjacency_graph.edges) > 0 or len(self.floor_plan.non_adjacency_graph.edges) > 0:
-            summary_text = "Constraint Summary:\n"
-            summary_text += f"• Adjacency: {len(adjacent_pairs)}/{len(self.floor_plan.adjacency_graph.edges)} satisfied\n"
-            summary_text += f"• Non-adjacency: {len(non_adjacency_satisfied)}/{len(self.floor_plan.non_adjacency_graph.edges)} satisfied"
+        # Create summary text
+        self._create_constraint_summary(constraint_stats, num_rooms, font_size)
 
-            if non_adjacency_violated:
-                summary_text += f"\n• Violations: {len(non_adjacency_violated)} non-adjacency"
+    def _create_constraint_summary(self, constraint_stats, num_rooms, font_size):
+        """Create constraint summary text with room identification legend"""
+        if num_rooms > 300:  # Skip summary for very large plans
+            return
 
-            # Choose background color based on violations
-            bg_color = "lightcoral" if non_adjacency_violated else "lightgreen" if (
-                    len(adjacent_pairs) == len(self.floor_plan.adjacency_graph.edges) and
-                    len(non_adjacency_satisfied) == len(self.floor_plan.non_adjacency_graph.edges)
-            ) else "lightyellow"
+        total_constraints = len(self.floor_plan.adjacency_graph.edges) + len(self.floor_plan.non_adjacency_graph.edges)
 
-            self.ax.text(0.02, 0.98, summary_text, transform=self.ax.transAxes,
-                         verticalalignment='top', bbox=dict(boxstyle="round,pad=0.4",
-                                                            facecolor=bg_color, alpha=0.9),
-                         fontsize=9, fontweight='bold')
+        summary_text = f"Rooms: {num_rooms}\n"
 
-        plt.tight_layout()
+        if num_rooms <= 100:
+            # Detailed summary
+            summary_text += f"Adjacency: {len(constraint_stats['adjacent_pairs'])}/{len(self.floor_plan.adjacency_graph.edges)} satisfied\n"
+            summary_text += f"Non-adjacency: {len(constraint_stats['non_adjacency_satisfied'])}/{len(self.floor_plan.non_adjacency_graph.edges)} satisfied"
+
+            if constraint_stats['non_adjacency_violated']:
+                summary_text += f"\nViolations: {len(constraint_stats['non_adjacency_violated'])} non-adjacency"
+        else:
+            # Simplified summary
+            total_violations = len(constraint_stats["unsatisfied_adjacencies"]) + len(
+                constraint_stats["non_adjacency_violated"])
+            total_satisfied = len(constraint_stats["adjacent_pairs"]) + len(constraint_stats["non_adjacency_satisfied"])
+            if total_constraints > 0:
+                summary_text += f"Constraints: {total_satisfied}/{total_constraints} satisfied"
+                if total_violations > 0:
+                    summary_text += f"\nViolations: {total_violations}"
+
+        # Add identification help for large plans
+        if num_rooms > 50:
+            summary_text += f"\n\nRoom IDs shown (1-{num_rooms})"
+            summary_text += "\nClick plot for room list"
+
+        # Choose background color based on violations
+        has_violations = len(constraint_stats["non_adjacency_violated"]) > 0 or len(
+            constraint_stats["unsatisfied_adjacencies"]) > 0
+        all_satisfied = (len(constraint_stats["adjacent_pairs"]) == len(self.floor_plan.adjacency_graph.edges) and
+                         len(constraint_stats["non_adjacency_satisfied"]) == len(
+                    self.floor_plan.non_adjacency_graph.edges))
+
+        bg_color = "lightcoral" if has_violations else "lightgreen" if all_satisfied else "lightyellow"
+
+        # Adaptive text size and positioning
+        text_font_size = max(6, min(font_size, 12))
+        text_alpha = max(0.7, min(0.9, 1.0 / np.sqrt(num_rooms / 50 + 1)))
+
+        self.ax.text(0.02, 0.98, summary_text, transform=self.ax.transAxes,
+                     verticalalignment='top',
+                     bbox=dict(boxstyle="round,pad=0.3", facecolor=bg_color, alpha=text_alpha),
+                     fontsize=text_font_size, fontweight='bold')
+
+    def _create_simple_summary(self, constraint_stats, font_size):
+        """Create very simple summary for extremely large plans"""
+        total_violations = len(constraint_stats["unsatisfied_adjacencies"]) + len(
+            constraint_stats["non_adjacency_violated"])
+
+        if total_violations > 0:
+            summary_text = f"{len(self.floor_plan.rooms)} rooms\n{total_violations} violations"
+            bg_color = "lightcoral"
+        else:
+            summary_text = f"{len(self.floor_plan.rooms)} rooms\nAll constraints OK"
+            bg_color = "lightgreen"
+
+        self.ax.text(0.02, 0.98, summary_text, transform=self.ax.transAxes,
+                     verticalalignment='top',
+                     bbox=dict(boxstyle="round,pad=0.3", facecolor=bg_color, alpha=0.8),
+                     fontsize=max(8, font_size), fontweight='bold')
+
+    # def visualize_floor_plan(self):
+    #     """Create matplotlib visualization of the floor plan with simplified constraint visualization"""
+    #     if not self.floor_plan:
+    #         return
+    #
+    #     # Draw floor shape
+    #     for region in self.floor_plan.floor_regions:
+    #         rect = plt.Rectangle(
+    #             (region['x'], region['y']),
+    #             region['width'],
+    #             region['height'],
+    #             linewidth=2,
+    #             edgecolor='black',
+    #             facecolor='lightgray',
+    #             alpha=0.3,
+    #             linestyle='--'
+    #         )
+    #         self.ax.add_patch(rect)
+    #
+    #     # Draw rooms with simplified color coding
+    #     colors = plt.cm.tab20(np.linspace(0, 1, len(self.floor_plan.rooms)))
+    #
+    #     # Calculate constraint violations for room coloring
+    #     room_violations = {}
+    #     for room in self.floor_plan.rooms:
+    #         violations = 0
+    #         # Check non-adjacency violations
+    #         if room.name in self.floor_plan.non_adjacency_graph:
+    #             for non_adj_room_name in self.floor_plan.non_adjacency_graph[room.name]:
+    #                 non_adj_room = next(r for r in self.floor_plan.rooms if r.name == non_adj_room_name)
+    #                 if room.has_shared_wall_with(non_adj_room):
+    #                     violations += 1
+    #         room_violations[room.name] = violations
+    #
+    #     for i, room in enumerate(self.floor_plan.rooms):
+    #         if room.x is not None and room.y is not None:
+    #             # Simple color coding: red for violations, normal color otherwise
+    #             if room_violations[room.name] > 0:
+    #                 face_color = 'lightcoral'
+    #                 edge_color = 'darkred'
+    #                 linewidth = 3
+    #             else:
+    #                 face_color = colors[i]
+    #                 edge_color = 'black'
+    #                 linewidth = 1
+    #
+    #             rect = plt.Rectangle(
+    #                 (room.x, room.y),
+    #                 room.width,
+    #                 room.height,
+    #                 linewidth=linewidth,
+    #                 edgecolor=edge_color,
+    #                 facecolor=face_color,
+    #                 alpha=0.7
+    #             )
+    #             self.ax.add_patch(rect)
+    #
+    #             # Room text with size info
+    #             original_size = f"{room.original_width}x{room.original_height}"
+    #             current_size = f"{room.width}x{room.height}"
+    #             display_text = f"{room.name}\n{current_size}"
+    #
+    #             # Add expansion info if expanded
+    #             if room.width != room.original_width or room.height != room.original_height:
+    #                 if room.rotated:
+    #                     display_text += f"\n(from {room.original_height}x{room.original_width})"
+    #                 else:
+    #                     display_text += f"\n(from {original_size})"
+    #
+    #             self.ax.text(
+    #                 room.x + room.width / 2,
+    #                 room.y + room.height / 2,
+    #                 display_text,
+    #                 ha='center',
+    #                 va='center',
+    #                 fontsize=8,
+    #                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9)
+    #             )
+    #
+    #     # Simplified constraint visualization using non-GUI logic
+    #     adjacent_pairs = []
+    #     unsatisfied_adjacencies = []
+    #     non_adjacency_satisfied = []
+    #     non_adjacency_violated = []
+    #
+    #     # Process adjacency relationships
+    #     for room1_name, room2_name in self.floor_plan.adjacency_graph.edges:
+    #         room1 = next(r for r in self.floor_plan.rooms if r.name == room1_name)
+    #         room2 = next(r for r in self.floor_plan.rooms if r.name == room2_name)
+    #
+    #         if room1.x is not None and room2.x is not None:
+    #             center1 = (room1.x + room1.width / 2, room1.y + room1.height / 2)
+    #             center2 = (room2.x + room2.width / 2, room2.y + room2.height / 2)
+    #
+    #             if room1.has_shared_wall_with(room2):
+    #                 # Satisfied adjacency - green solid line
+    #                 self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'g-',
+    #                              linewidth=2, alpha=0.8)
+    #                 adjacent_pairs.append((room1_name, room2_name))
+    #             else:
+    #                 # Unsatisfied adjacency - red dashed line
+    #                 self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'r--',
+    #                              linewidth=2, alpha=0.9)
+    #                 unsatisfied_adjacencies.append((room1_name, room2_name))
+    #
+    #     # Process non-adjacency relationships
+    #     for room1_name, room2_name in self.floor_plan.non_adjacency_graph.edges:
+    #         room1 = next(r for r in self.floor_plan.rooms if r.name == room1_name)
+    #         room2 = next(r for r in self.floor_plan.rooms if r.name == room2_name)
+    #
+    #         if room1.x is not None and room2.x is not None:
+    #             center1 = (room1.x + room1.width / 2, room1.y + room1.height / 2)
+    #             center2 = (room2.x + room2.width / 2, room2.y + room2.height / 2)
+    #
+    #             # Always show coral blue dotted line for non-adjacency constraints
+    #             self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]],
+    #                          color='blue', linewidth=2, linestyle=':', alpha=0.7)
+    #
+    #             if room1.has_shared_wall_with(room2):
+    #                 # Violation - rooms should not be adjacent but they are
+    #                 # Add additional red line to show violation
+    #                 self.ax.plot([center1[0], center2[0]], [center1[1], center2[1]], 'red',
+    #                              linewidth=3, linestyle=':', alpha=0.8)
+    #                 non_adjacency_violated.append((room1_name, room2_name))
+    #
+    #                 # Add warning symbols at room centers
+    #                 self.ax.plot(center1[0], center1[1], 'rX', markersize=12, alpha=0.9)
+    #                 self.ax.plot(center2[0], center2[1], 'rX', markersize=12, alpha=0.9)
+    #             else:
+    #                 # Satisfied - rooms are not adjacent as required
+    #                 non_adjacency_satisfied.append((room1_name, room2_name))
+    #
+    #     # Set limits and labels
+    #     max_width = self.floor_plan.floor_width
+    #     max_height = self.floor_plan.floor_height
+    #     self.ax.set_xlim(-1, max_width + 1)
+    #     self.ax.set_ylim(-1, max_height + 1)
+    #     self.ax.set_aspect('equal')
+    #
+    #     # Simplified title
+    #     title = f'Floor Plan - Adjacency: {len(adjacent_pairs)}/{len(self.floor_plan.adjacency_graph.edges)}'
+    #     if len(self.floor_plan.non_adjacency_graph.edges) > 0:
+    #         title += f', Non-Adjacency: {len(non_adjacency_satisfied)}/{len(self.floor_plan.non_adjacency_graph.edges)} satisfied'
+    #
+    #     self.ax.set_title(title, fontsize=11, fontweight='bold')
+    #     self.ax.set_xlabel('Width')
+    #     self.ax.set_ylabel('Height')
+    #     self.ax.grid(True, alpha=0.3)
+    #
+    #     # Simplified legend
+    #     legend_elements = []
+    #
+    #     if adjacent_pairs:
+    #         legend_elements.append(plt.Line2D([0], [0], color='green', linewidth=2,
+    #                                           label=f'Adjacent (satisfied): {len(adjacent_pairs)}'))
+    #
+    #     if unsatisfied_adjacencies:
+    #         legend_elements.append(plt.Line2D([0], [0], color='red', linewidth=2,
+    #                                           linestyle='--', alpha=0.9,
+    #                                           label=f'Adjacent (unsatisfied): {len(unsatisfied_adjacencies)}'))
+    #
+    #     # Always show non-adjacency constraint line in legend if constraints exist
+    #     if len(self.floor_plan.non_adjacency_graph.edges) > 0:
+    #         legend_elements.append(plt.Line2D([0], [0], color='lightcoral', linewidth=2,
+    #                                           linestyle=':', alpha=0.7,
+    #                                           label=f'Non-adjacent constraint: {len(self.floor_plan.non_adjacency_graph.edges)}'))
+    #
+    #     if non_adjacency_violated:
+    #         legend_elements.append(plt.Line2D([0], [0], color='red', linewidth=3,
+    #                                           linestyle=':', alpha=0.8,
+    #                                           label=f'Non-adjacent (VIOLATED): {len(non_adjacency_violated)}'))
+    #         legend_elements.append(plt.Line2D([0], [0], marker='X', color='red',
+    #                                           linewidth=0, markersize=8, alpha=0.9,
+    #                                           label='Violation markers'))
+    #
+    #     if legend_elements:
+    #         self.ax.legend(handles=legend_elements, loc='upper left',
+    #                        bbox_to_anchor=(1.02, 1), borderaxespad=0)
+    #
+    #     # Simplified summary text
+    #     if len(self.floor_plan.adjacency_graph.edges) > 0 or len(self.floor_plan.non_adjacency_graph.edges) > 0:
+    #         summary_text = "Constraint Summary:\n"
+    #         summary_text += f"• Adjacency: {len(adjacent_pairs)}/{len(self.floor_plan.adjacency_graph.edges)} satisfied\n"
+    #         summary_text += f"• Non-adjacency: {len(non_adjacency_satisfied)}/{len(self.floor_plan.non_adjacency_graph.edges)} satisfied"
+    #
+    #         if non_adjacency_violated:
+    #             summary_text += f"\n• Violations: {len(non_adjacency_violated)} non-adjacency"
+    #
+    #         # Choose background color based on violations
+    #         bg_color = "lightcoral" if non_adjacency_violated else "lightgreen" if (
+    #                 len(adjacent_pairs) == len(self.floor_plan.adjacency_graph.edges) and
+    #                 len(non_adjacency_satisfied) == len(self.floor_plan.non_adjacency_graph.edges)
+    #         ) else "lightyellow"
+    #
+    #         self.ax.text(0.02, 0.98, summary_text, transform=self.ax.transAxes,
+    #                      verticalalignment='top', bbox=dict(boxstyle="round,pad=0.4",
+    #                                                         facecolor=bg_color, alpha=0.9),
+    #                      fontsize=9, fontweight='bold')
+    #
+    #     plt.tight_layout()
 
 
 
