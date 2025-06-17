@@ -12,6 +12,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
 
+
 class FloorPlanGUI:
     def __init__(self, root):
         self.root = root
@@ -370,10 +371,92 @@ class FloorPlanGUI:
             non_adjacencies.append({"room1": room1, "room2": room2})
         return non_adjacencies
 
+    def on_canvas_click(self, event):
+        if event.xdata is None or event.ydata is None:
+            return
+
+        if self.add_mode.get() == "door":
+            self.place_door(event.xdata, event.ydata)
+            self.add_mode.set("none")
+        elif self.add_mode.get() == "window":
+            self.place_window(event.xdata, event.ydata)
+            self.add_mode.set("none")
+
+    def place_door(self, x, y):
+        wall = None
+        for room in self.floor_plan.rooms:
+            if room.x is not None and room.y is not None:
+                if abs(y - room.y) < 0.5 and room.x <= x <= room.x + room.width:
+                    wall = "bottom"
+                elif abs(y - (room.y + room.height)) < 0.5 and room.x <= x <= room.x + room.width:
+                    wall = "top"
+                elif abs(x - room.x) < 0.5 and room.y <= y <= room.y + room.height:
+                    wall = "left"
+                elif abs(x - (room.x + room.width)) < 0.5 and room.y <= y <= room.y + room.height:
+                    wall = "right"
+                if wall:
+                    break
+
+        if not wall:
+            wall = "unknown"
+
+        if wall == "bottom":
+            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="brown", linewidth=3)
+            arc = mpatches.Arc((x + 0.5, y), 1, 1, angle=0, theta1=180, theta2=270, color="gray")
+        elif wall == "top":
+            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="brown", linewidth=3)
+            arc = mpatches.Arc((x - 0.5, y), 1, 1, angle=0, theta1=0, theta2=90, color="gray")
+        elif wall == "left":
+            self.ax.plot([x, x], [y - 0.5, y + 0.5], color="brown", linewidth=3)
+            arc = mpatches.Arc((x, y + 0.5), 1, 1, angle=90, theta1=0, theta2=90, color="gray")
+        elif wall == "right":
+            self.ax.plot([x, x], [y - 0.5, y + 0.5], color="brown", linewidth=3)
+            arc = mpatches.Arc((x, y - 0.5), 1, 1, angle=90, theta1=180, theta2=270, color="gray")
+        else:
+            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="brown", linewidth=3)
+            arc = mpatches.Arc((x + 0.5, y), 1, 1, angle=0, theta1=180, theta2=270, color="gray")
+
+        self.ax.add_patch(arc)
+        if not hasattr(self, 'placed_doors'):
+            self.placed_doors = []
+        self.placed_doors.append({"x": x, "y": y, "wall": wall})
+        self.canvas.draw()
+
+    def place_window(self, x, y):
+        wall = None
+        for room in self.floor_plan.rooms:
+            if room.x is not None and room.y is not None:
+                if abs(y - room.y) < 0.5 and room.x <= x <= room.x + room.width:
+                    wall = "bottom"
+                elif abs(y - (room.y + room.height)) < 0.5 and room.x <= x <= room.x + room.width:
+                    wall = "top"
+                elif abs(x - room.x) < 0.5 and room.y <= y <= room.y + room.height:
+                    wall = "left"
+                elif abs(x - (room.x + room.width)) < 0.5 and room.y <= y <= room.y + room.height:
+                    wall = "right"
+                if wall:
+                    break
+
+        if not wall:
+            wall = "unknown"
+
+        if wall in ["top", "bottom"]:
+            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="blue", linewidth=2, linestyle="--")
+        elif wall in ["left", "right"]:
+            self.ax.plot([x, x], [y - 0.5, y + 0.5], color="blue", linewidth=2, linestyle="--")
+        else:
+            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="blue", linewidth=2, linestyle="--")
+
+        if not hasattr(self, 'placed_windows'):
+            self.placed_windows = []
+        self.placed_windows.append({"x": x, "y": y, "wall": wall})
+        self.canvas.draw()
+
     def init_output_screen(self):
         """Initialize the output screen"""
         frame = ttk.Frame(self.content_frame)
         self.screens["output"] = frame
+        self.add_mode = tk.StringVar(value="none")
 
         # Title
         ttk.Label(frame, text="Floor Plan Output",
@@ -394,6 +477,14 @@ class FloorPlanGUI:
         # First row - generation controls
         gen_controls_row = ttk.Frame(controls_frame)
         gen_controls_row.pack(fill=tk.X, pady=(0, 10))
+
+        # Add Door/Window buttons
+        ttk.Button(gen_controls_row, text="Add Door", command=lambda: self.add_mode.set("door")).grid(row=0, column=4,
+                                                                                                      padx=5)
+
+        ttk.Button(gen_controls_row, text="Add Window", command=lambda: self.add_mode.set("window")).grid(row=0,
+                                                                                                          column=5,
+                                                                                                          padx=5)
 
         # Max attempts
         ttk.Label(gen_controls_row, text="Max Attempts:").grid(row=0, column=0, sticky=tk.W, padx=5)
@@ -416,6 +507,11 @@ class FloorPlanGUI:
                    command=self.save_floor_plan_json).pack(side=tk.LEFT, padx=5)
         ttk.Button(save_controls_row, text="Load from JSON",
                    command=self.load_floor_plan_json).pack(side=tk.LEFT, padx=5)
+        ttk.Button(gen_controls_row, text="Add Door", command=lambda: self.add_mode.set("door")).grid(row=0, column=4,
+                                                                                                      padx=5)
+        ttk.Button(gen_controls_row, text="Add Window", command=lambda: self.add_mode.set("window")).grid(row=0,
+                                                                                                          column=5,
+                                                                                                          padx=5)
 
         # Statistics frame
         stats_frame = ttk.LabelFrame(left_panel, text="Statistics", padding=10)
@@ -437,6 +533,7 @@ class FloorPlanGUI:
         self.fig, self.ax = plt.subplots(figsize=(8, 6))
         self.canvas = FigureCanvasTkAgg(self.fig, viz_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self.canvas.mpl_connect("button_press_event", self.on_canvas_click)
 
     def save_floor_plan_json(self):
         """Save the current floor plan configuration and results to JSON"""
@@ -661,7 +758,7 @@ class FloorPlanGUI:
         # Calculate statistics
         total_area = sum(region['width'] * region['height'] for region in self.floor_plan.floor_regions)
         used_area = sum(room.width * room.height for room in self.floor_plan.rooms if room.x is not None)
-        score, adjacent_pairs , violations = self.floor_plan.evaluate_adjacency_score()
+        score, adjacent_pairs, violations = self.floor_plan.evaluate_adjacency_score()
 
         # Get room placements
         room_placements = []
@@ -1285,7 +1382,7 @@ class FloorPlanGUI:
             enable_expansion = self.enable_expansion_var.get()
 
             success = self.floor_plan.place_rooms_with_constraints_optimized(
-            use_compact_mode=self.enable_space_optimization_var.get(),
+                use_compact_mode=self.enable_space_optimization_var.get(),
                 max_attempts=max_attempts,
                 enable_expansion=enable_expansion
             )
@@ -1294,7 +1391,7 @@ class FloorPlanGUI:
                 self.floor_plan.compact_rooms()
                 self.floor_plan.enforce_minimum_adjacency()
                 self.floor_plan.compact_rooms()
-                
+
                 messagebox.showinfo("Success", "Floor plan generated successfully!")
                 self.update_output_display()
             else:
@@ -1326,7 +1423,7 @@ class FloorPlanGUI:
         stats += f"Room area: {used_area} square units\n"
         stats += f"Space utilization: {used_area / total_area:.2%}\n\n"
 
-        score, adjacent_pairs , violations = self.floor_plan.evaluate_adjacency_score()
+        score, adjacent_pairs, violations = self.floor_plan.evaluate_adjacency_score()
         stats += f"Adjacency score: {score}/{len(self.floor_plan.adjacency_graph.edges)}\n"
         stats += f"Adjacent pairs: {adjacent_pairs}\n\n"
 
@@ -1929,7 +2026,6 @@ class FloorPlanGUI:
                      fontsize=max(8, font_size), fontweight='bold')
 
 
-
 def main():
     """Main function to run the GUI"""
     root = tk.Tk()
@@ -1962,3 +2058,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
