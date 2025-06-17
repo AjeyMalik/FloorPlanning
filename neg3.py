@@ -88,11 +88,22 @@ class FloorPlan:
     def compact_rooms(self):
         def overlaps(r1, r2):
             return not (
-                    r1.x + r1.width <= r2.x or
-                    r2.x + r2.width <= r1.x or
-                    r1.y + r1.height <= r2.y or
-                    r2.y + r2.height <= r1.y
+                r1.x + r1.width <= r2.x or
+                r2.x + r2.width <= r1.x or
+                r1.y + r1.height <= r2.y or
+                r2.y + r2.height <= r1.y
             )
+
+        def is_within_any_floor_region(room):
+            """Check if the entire room lies inside any one allowed region."""
+            for region in self.floor_regions:
+                rx, ry, rw, rh = region['x'], region['y'], region['width'], region['height']
+                if (room.x >= rx and
+                    room.y >= ry and
+                    room.x + room.width <= rx + rw and
+                        room.y + room.height <= ry + rh):
+                    return True
+            return False
 
         moved = True
         while moved:
@@ -100,13 +111,13 @@ class FloorPlan:
             for room in sorted(self.rooms, key=lambda r: (r.x, r.y)):
                 while room.x > 0:
                     room.x -= 1
-                    if any(overlaps(room, other) for other in self.rooms if other != room):
+                    if not is_within_any_floor_region(room) or any(overlaps(room, other) for other in self.rooms if other != room):
                         room.x += 1
                         break
                     moved = True
                 while room.y > 0:
                     room.y -= 1
-                    if any(overlaps(room, other) for other in self.rooms if other != room):
+                    if not is_within_any_floor_region(room) or any(overlaps(room, other) for other in self.rooms if other != room):
                         room.y += 1
                         break
                     moved = True
