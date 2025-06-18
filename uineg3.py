@@ -2002,11 +2002,11 @@ class FloorPlanGUI:
         # Adaptive text size and positioning
         text_font_size = max(6, min(font_size, 12))
         text_alpha = max(0.7, min(0.9, 1.0 / np.sqrt(num_rooms / 50 + 1)))
-
-        self.ax.text(0.02, 0.98, summary_text, transform=self.ax.transAxes,
-                     verticalalignment='top',
-                     bbox=dict(boxstyle="round,pad=0.3", facecolor=bg_color, alpha=text_alpha),
-                     fontsize=text_font_size, fontweight='bold')
+#Commented out because this gives a popup over the plan, which is not needed. 
+        # self.ax.text(0.02, 0.98, summary_text, transform=self.ax.transAxes,
+        #              verticalalignment='top',
+        #              bbox=dict(boxstyle="round,pad=0.3", facecolor=bg_color, alpha=text_alpha),
+        #              fontsize=text_font_size, fontweight='bold')
 
     def _create_simple_summary(self, constraint_stats, font_size):
         """Create very simple summary for extremely large plans"""
