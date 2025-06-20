@@ -436,47 +436,47 @@ class FloorPlanGUI:
         self.placed_doors.append({"x": x, "y": y, "wall": wall})
         self.canvas.draw()
 
-    def place_window(self, x, y):
-        wall = None
-        for room in self.floor_plan.rooms:
-            if room.x is not None and room.y is not None:
-                if abs(y - room.y) < 0.5 and room.x <= x <= room.x + room.width:
-                    wall = "bottom"
-                elif abs(y - (room.y + room.height)) < 0.5 and room.x <= x <= room.x + room.width:
-                    wall = "top"
-                elif abs(x - room.x) < 0.5 and room.y <= y <= room.y + room.height:
-                    wall = "left"
-                elif abs(x - (room.x + room.width)) < 0.5 and room.y <= y <= room.y + room.height:
-                    wall = "right"
-                if wall:
-                    break
+def place_window(self, x, y):
+    wall = None
+    for room in self.floor_plan.rooms:
+        if room.x is not None and room.y is not None:
+            if abs(y - room.y) < 0.5 and room.x <= x <= room.x + room.width:
+                wall = "bottom"
+            elif abs(y - (room.y + room.height)) < 0.5 and room.x <= x <= room.x + room.width:
+                wall = "top"
+            elif abs(x - room.x) < 0.5 and room.y <= y <= room.y + room.height:
+                wall = "left"
+            elif abs(x - (room.x + room.width)) < 0.5 and room.y <= y <= room.y + room.height:
+                wall = "right"
+            if wall:
+                break
 
-        if not wall:
-            wall = "bottom"
+    if not wall:
+        wall = "unknown"
 
-        length = 0.6  # 2 feet
-        half = length / 2
-        color = "blue"
-        thickness = 4
-        cap_thickness = 2
-        spacing = 0.1
+    length = 0.6  # 2 feet
+    half = length / 2
+    color = "blue"
+    thickness = 2.5      # ⬅️ reduced main thickness
+    cap_thickness = 1.5  # ⬅️ reduced cap thickness
+    spacing = 0.1
 
-        if wall in ["top", "bottom"]:
-            self.ax.plot([x - half, x + half], [y + spacing, y + spacing], color=color, linewidth=thickness)
-            self.ax.plot([x - half, x + half], [y - spacing, y - spacing], color=color, linewidth=thickness)
-            self.ax.plot([x - half, x - half], [y - spacing, y + spacing], color=color, linewidth=cap_thickness)
-            self.ax.plot([x + half, x + half], [y - spacing, y + spacing], color=color, linewidth=cap_thickness)
+    if wall in ["top", "bottom"]:
+        self.ax.plot([x - half, x + half], [y + spacing, y + spacing], color=color, linewidth=thickness)
+        self.ax.plot([x - half, x + half], [y - spacing, y - spacing], color=color, linewidth=thickness)
+        self.ax.plot([x - half, x - half], [y - spacing, y + spacing], color=color, linewidth=cap_thickness)
+        self.ax.plot([x + half, x + half], [y - spacing, y + spacing], color=color, linewidth=cap_thickness)
 
-        elif wall in ["left", "right"]:
-            self.ax.plot([x + spacing, x + spacing], [y - half, y + half], color=color, linewidth=thickness)
-            self.ax.plot([x - spacing, x - spacing], [y - half, y + half], color=color, linewidth=thickness)
-            self.ax.plot([x - spacing, x + spacing], [y - half, y - half], color=color, linewidth=cap_thickness)
-            self.ax.plot([x - spacing, x + spacing], [y + half, y + half], color=color, linewidth=cap_thickness)
+    elif wall in ["left", "right"]:
+        self.ax.plot([x + spacing, x + spacing], [y - half, y + half], color=color, linewidth=thickness)
+        self.ax.plot([x - spacing, x - spacing], [y - half, y + half], color=color, linewidth=thickness)
+        self.ax.plot([x - spacing, x + spacing], [y - half, y - half], color=color, linewidth=cap_thickness)
+        self.ax.plot([x - spacing, x + spacing], [y + half, y + half], color=color, linewidth=cap_thickness)
 
-        if not hasattr(self, 'placed_windows'):
-            self.placed_windows = []
-        self.placed_windows.append({"x": x, "y": y, "wall": wall})
-        self.canvas.draw()
+    if not hasattr(self, 'placed_windows'):
+        self.placed_windows = []
+    self.placed_windows.append({"x": x, "y": y, "wall": wall})
+    self.canvas.draw()
 
     def init_output_screen(self):
         """Initialize the output screen"""
