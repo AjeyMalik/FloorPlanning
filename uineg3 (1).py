@@ -398,59 +398,85 @@ class FloorPlanGUI:
                     break
 
         if not wall:
-            wall = "unknown"
+            wall = "bottom"
+
+        width = 0.9  # 3 feet door
+        color = "brown"
+        thickness = 3
+        arc_color = "gray"
 
         if wall == "bottom":
-            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="brown", linewidth=3)
-            arc = mpatches.Arc((x + 0.5, y), 1, 1, angle=0, theta1=180, theta2=270, color="gray")
+            # door on bottom wall, opens upward
+            self.ax.plot([x, x], [y, y + width], color=color, linewidth=thickness)  # vertical panel
+            self.ax.plot([x, x + width], [y, y], color=color, linewidth=thickness)  # horizontal edge
+            arc = mpatches.Arc((x, y), 2 * width, 2 * width, angle=0, theta1=0, theta2=90, color=arc_color, linewidth=2)
+
         elif wall == "top":
-            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="brown", linewidth=3)
-            arc = mpatches.Arc((x - 0.5, y), 1, 1, angle=0, theta1=0, theta2=90, color="gray")
+            self.ax.plot([x, x], [y, y - width], color=color, linewidth=thickness)
+            self.ax.plot([x, x - width], [y, y], color=color, linewidth=thickness)
+            arc = mpatches.Arc((x, y), 2 * width, 2 * width, angle=180, theta1=0, theta2=90, color=arc_color,
+                               linewidth=2)
+
         elif wall == "left":
-            self.ax.plot([x, x], [y - 0.5, y + 0.5], color="brown", linewidth=3)
-            arc = mpatches.Arc((x, y + 0.5), 1, 1, angle=90, theta1=0, theta2=90, color="gray")
+            self.ax.plot([x, x + width], [y, y], color=color, linewidth=thickness)
+            self.ax.plot([x, x], [y, y - width], color=color, linewidth=thickness)
+            arc = mpatches.Arc((x, y), 2 * width, 2 * width, angle=270, theta1=0, theta2=90, color=arc_color,
+                               linewidth=2)
+
         elif wall == "right":
-            self.ax.plot([x, x], [y - 0.5, y + 0.5], color="brown", linewidth=3)
-            arc = mpatches.Arc((x, y - 0.5), 1, 1, angle=90, theta1=180, theta2=270, color="gray")
-        else:
-            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="brown", linewidth=3)
-            arc = mpatches.Arc((x + 0.5, y), 1, 1, angle=0, theta1=180, theta2=270, color="gray")
+            self.ax.plot([x, x - width], [y, y], color=color, linewidth=thickness)
+            self.ax.plot([x, x], [y, y + width], color=color, linewidth=thickness)
+            arc = mpatches.Arc((x, y), 2 * width, 2 * width, angle=90, theta1=0, theta2=90, color=arc_color,
+                               linewidth=2)
 
         self.ax.add_patch(arc)
+
         if not hasattr(self, 'placed_doors'):
             self.placed_doors = []
         self.placed_doors.append({"x": x, "y": y, "wall": wall})
         self.canvas.draw()
 
-    def place_window(self, x, y):
-        wall = None
-        for room in self.floor_plan.rooms:
-            if room.x is not None and room.y is not None:
-                if abs(y - room.y) < 0.5 and room.x <= x <= room.x + room.width:
-                    wall = "bottom"
-                elif abs(y - (room.y + room.height)) < 0.5 and room.x <= x <= room.x + room.width:
-                    wall = "top"
-                elif abs(x - room.x) < 0.5 and room.y <= y <= room.y + room.height:
-                    wall = "left"
-                elif abs(x - (room.x + room.width)) < 0.5 and room.y <= y <= room.y + room.height:
-                    wall = "right"
-                if wall:
-                    break
+def place_window(self, x, y):
+    wall = None
+    for room in self.floor_plan.rooms:
+        if room.x is not None and room.y is not None:
+            if abs(y - room.y) < 0.5 and room.x <= x <= room.x + room.width:
+                wall = "bottom"
+            elif abs(y - (room.y + room.height)) < 0.5 and room.x <= x <= room.x + room.width:
+                wall = "top"
+            elif abs(x - room.x) < 0.5 and room.y <= y <= room.y + room.height:
+                wall = "left"
+            elif abs(x - (room.x + room.width)) < 0.5 and room.y <= y <= room.y + room.height:
+                wall = "right"
+            if wall:
+                break
 
-        if not wall:
-            wall = "unknown"
+    if not wall:
+        wall = "unknown"
 
-        if wall in ["top", "bottom"]:
-            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="blue", linewidth=2, linestyle="--")
-        elif wall in ["left", "right"]:
-            self.ax.plot([x, x], [y - 0.5, y + 0.5], color="blue", linewidth=2, linestyle="--")
-        else:
-            self.ax.plot([x - 0.5, x + 0.5], [y, y], color="blue", linewidth=2, linestyle="--")
+    length = 0.9  # 3 feet
+    half = length / 2
+    color = "blue"
+    thickness = 2.5      # ⬅️ reduced main thickness
+    cap_thickness = 1.5  # ⬅️ reduced cap thickness
+    spacing = 0.1
 
-        if not hasattr(self, 'placed_windows'):
-            self.placed_windows = []
-        self.placed_windows.append({"x": x, "y": y, "wall": wall})
-        self.canvas.draw()
+    if wall in ["top", "bottom"]:
+        self.ax.plot([x - half, x + half], [y + spacing, y + spacing], color=color, linewidth=thickness)
+        self.ax.plot([x - half, x + half], [y - spacing, y - spacing], color=color, linewidth=thickness)
+        self.ax.plot([x - half, x - half], [y - spacing, y + spacing], color=color, linewidth=cap_thickness)
+        self.ax.plot([x + half, x + half], [y - spacing, y + spacing], color=color, linewidth=cap_thickness)
+
+    elif wall in ["left", "right"]:
+        self.ax.plot([x + spacing, x + spacing], [y - half, y + half], color=color, linewidth=thickness)
+        self.ax.plot([x - spacing, x - spacing], [y - half, y + half], color=color, linewidth=thickness)
+        self.ax.plot([x - spacing, x + spacing], [y - half, y - half], color=color, linewidth=cap_thickness)
+        self.ax.plot([x - spacing, x + spacing], [y + half, y + half], color=color, linewidth=cap_thickness)
+
+    if not hasattr(self, 'placed_windows'):
+        self.placed_windows = []
+    self.placed_windows.append({"x": x, "y": y, "wall": wall})
+    self.canvas.draw()
 
     def init_output_screen(self):
         """Initialize the output screen"""

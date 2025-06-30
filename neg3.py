@@ -88,10 +88,10 @@ class FloorPlan:
     def compact_rooms(self):
         def overlaps(r1, r2):
             return not (
-                r1.x + r1.width <= r2.x or
-                r2.x + r2.width <= r1.x or
-                r1.y + r1.height <= r2.y or
-                r2.y + r2.height <= r1.y
+                    r1.x + r1.width <= r2.x or
+                    r2.x + r2.width <= r1.x or
+                    r1.y + r1.height <= r2.y or
+                    r2.y + r2.height <= r1.y
             )
 
         def is_within_any_floor_region(room):
@@ -99,8 +99,8 @@ class FloorPlan:
             for region in self.floor_regions:
                 rx, ry, rw, rh = region['x'], region['y'], region['width'], region['height']
                 if (room.x >= rx and
-                    room.y >= ry and
-                    room.x + room.width <= rx + rw and
+                        room.y >= ry and
+                        room.x + room.width <= rx + rw and
                         room.y + room.height <= ry + rh):
                     return True
             return False
@@ -111,13 +111,15 @@ class FloorPlan:
             for room in sorted(self.rooms, key=lambda r: (r.x, r.y)):
                 while room.x > 0:
                     room.x -= 1
-                    if not is_within_any_floor_region(room) or any(overlaps(room, other) for other in self.rooms if other != room):
+                    if not is_within_any_floor_region(room) or any(
+                            overlaps(room, other) for other in self.rooms if other != room):
                         room.x += 1
                         break
                     moved = True
                 while room.y > 0:
                     room.y -= 1
-                    if not is_within_any_floor_region(room) or any(overlaps(room, other) for other in self.rooms if other != room):
+                    if not is_within_any_floor_region(room) or any(
+                            overlaps(room, other) for other in self.rooms if other != room):
                         room.y += 1
                         break
                     moved = True
@@ -363,7 +365,7 @@ class FloorPlan:
                     is_non_adjacent_violation = False
                     for existing_room in self.rooms:
                         if existing_room != room and existing_room.x is not None and existing_room.y is not None:
-                            if tuple(sorted((room.name, existing_room.name))) in self.non_adjacency_pairs:
+                            if self.non_adjacency_graph.has_edge(room.name, existing_room.name):
                                 # Temporarily set room's position to check for wall sharing
                                 original_x, original_y = room.x, room.y
                                 room.x, room.y = new_x, new_y
@@ -924,6 +926,29 @@ class FloorPlan:
 
                 print(f"{room.name}: {room.original_width}x{room.original_height} → {room.width}x{room.height} " +
                       f"({expansion_pct:.1f}% increase, expansion used: {expansion_usage})")
+
+    def generate_layout(self, max_attempts=1000, enable_expansion=True, enable_space_optimization=True):
+        # """
+        # Generate a floor plan layout by placing rooms within the boundary.
+
+        # Parameters:
+        # - max_attempts (int): Maximum number of attempts to place rooms.
+        # - enable_expansion (bool): Allow rooms to expand up to their max_expansion limit.
+        # - enable_space_optimization (bool): Optimize space usage by minimizing unused areas.
+
+        # Returns:
+        # - bool: True if layout generation is successful, False otherwise.
+        # """
+        success = self.place_rooms_with_constraints_optimized(
+            max_attempts=max_attempts,
+            enable_expansion=enable_expansion,
+            use_compact_mode=enable_space_optimization
+        )
+        if success:
+            # Enforce minimum adjacency and compact rooms, as in the example usage
+            self.enforce_minimum_adjacency()
+            self.compact_rooms()
+        return success
 
 
 # Example usage
