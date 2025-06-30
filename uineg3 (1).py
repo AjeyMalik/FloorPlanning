@@ -400,7 +400,7 @@ class FloorPlanGUI:
         if not wall:
             wall = "bottom"
 
-        width = 0.6  # 2 feet door
+        width = 0.9  # 3 feet door
         color = "brown"
         thickness = 3
         arc_color = "gray"
@@ -454,7 +454,7 @@ def place_window(self, x, y):
     if not wall:
         wall = "unknown"
 
-    length = 0.6  # 2 feet
+    length = 0.9  # 3 feet
     half = length / 2
     color = "blue"
     thickness = 2.5      # ⬅️ reduced main thickness
