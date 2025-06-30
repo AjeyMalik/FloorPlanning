@@ -1434,51 +1434,78 @@ class FloorPlanGUI:
 
     def load_example_data(self):
         self.clear_all_data()
-
-        example_regions = [
-            {'x': 0, 'y': 0, 'width': 10, 'height': 10},
-            {'x': 10, 'y': 0, 'width': 8, 'height': 5},
-            {'x': 0, 'y': 10, 'width': 5, 'height': 8},
-            {'x': 10, 'y': 5, 'width': 6, 'height': 6}
-        ]
-
-        for i, region in enumerate(example_regions):
-            item = self.regions_tree.insert("", "end", text=f"Region {i + 1}")
-            self.regions_tree.set(item, "X", region['x'])
-            self.regions_tree.set(item, "Y", region['y'])
-            self.regions_tree.set(item, "Width", region['width'])
-            self.regions_tree.set(item, "Height", region['height'])
-
-        example_rooms = [
-            ("Living Room", 8, 4, 15),
-            ("Kitchen", 6, 4, 8),
-            ("Bedroom 1", 5, 4, 10),
-            ("Bedroom 2", 5, 4, 6),
-            ("Bathroom", 3, 4, 2),
-            ("Hallway", 2, 4, 5),
-            ("Office", 3, 3, 0),
-            ("secretRoom", 3, 3, 3)
-        ]
-
-        for room_data in example_rooms:
-            name, width, height, max_exp = room_data
-            item = self.rooms_tree.insert("", "end", text=name)
-            self.rooms_tree.set(item, "Width", width)
-            self.rooms_tree.set(item, "Height", height)
-            self.rooms_tree.set(item, "Max Expansion", max_exp)
-
-        example_adjacencies = [
-            ("Living Room", "Kitchen"),
-            ("Living Room", "Bathroom"),
-            ("Kitchen", "Bedroom 1"),
-            ("Bedroom 2", "Hallway"),
-            ("Hallway", "Bathroom"),
-            ("Office", "Bedroom 2"),
-            ("secretRoom", "Kitchen")
-        ]
-
-        for room1, room2 in example_adjacencies:
-            self.adjacencies_listbox.insert(tk.END, f"{room1} â�� {room2}")
+        #
+        # example_regions = [
+        #     {'x': 0, 'y': 0, 'width': 20, 'height': 20},
+        #     {'x': 20, 'y': 0, 'width': 20, 'height': 20},
+        #     {'x': 0, 'y': 20, 'width': 20, 'height': 20},
+        #     {'x': 20, 'y': 20, 'width': 20, 'height': 20},
+        #     {'x': 40, 'y': 0, 'width': 20, 'height': 20},
+        #     {'x': 40, 'y': 20, 'width': 20, 'height': 20},
+        # ]
+        #
+        # for i, region in enumerate(example_regions):
+        #     item = self.regions_tree.insert("", "end", text=f"Region {i + 1}")
+        #     self.regions_tree.set(item, "X", region['x'])
+        #     self.regions_tree.set(item, "Y", region['y'])
+        #     self.regions_tree.set(item, "Width", region['width'])
+        #     self.regions_tree.set(item, "Height", region['height'])
+        #
+        # example_rooms = [
+        #     ("Main Reception", 8, 5, 6),
+        #     ("Waiting Area A", 10, 6, 8),
+        #     ("Waiting Area B", 10, 6, 8),
+        #     ("Doctor Room 1", 5, 5, 5),
+        #     ("Doctor Room 2", 5, 5, 5),
+        #     ("Doctor Room 3", 5, 5, 5),
+        #     ("Operation Theater 1", 8, 8, 8),
+        #     ("Operation Theater 2", 8, 8, 8),
+        #     ("ICU 1", 6, 6, 6),
+        #     ("ICU 2", 6, 6, 6),
+        #     ("Pharmacy", 5, 5, 4),
+        #     ("Radiology", 6, 6, 6),
+        #     ("Emergency Room", 8, 6, 6),
+        #     ("Laboratory", 6, 6, 6),
+        #     ("Cafeteria", 10, 8, 2),
+        #     ("Washroom A", 3, 3, 0),
+        #     ("Washroom B", 3, 3, 0),
+        #     ("Admin Office", 6, 5, 2),
+        #     ("Storage", 5, 5, 1),
+        #     ("Ambulance Bay", 10, 5, 0),
+        # ]
+        #
+        # for room_data in example_rooms:
+        #     name, width, height, max_exp = room_data
+        #     item = self.rooms_tree.insert("", "end", text=name)
+        #     self.rooms_tree.set(item, "Width", width)
+        #     self.rooms_tree.set(item, "Height", height)
+        #     self.rooms_tree.set(item, "Max Expansion", max_exp)
+        #
+        # example_adjacencies = [
+        #     ("Main Reception", "Waiting Area A"),
+        #     ("Main Reception", "Waiting Area B"),
+        #     ("Waiting Area A", "Doctor Room 1"),
+        #     ("Waiting Area B", "Doctor Room 2"),
+        #     ("Doctor Room 1", "Operation Theater 1"),
+        #     ("Doctor Room 2", "Operation Theater 2"),
+        #     ("Operation Theater 1", "ICU 1"),
+        #     ("Operation Theater 2", "ICU 2"),
+        #     ("Main Reception", "Pharmacy"),
+        #     ("Main Reception", "Emergency Room"),
+        #     ("Emergency Room", "ICU 1"),
+        #     ("Emergency Room", "Radiology"),
+        #     ("Radiology", "Laboratory"),
+        #     ("Cafeteria", "Waiting Area A"),
+        #     ("Cafeteria", "Admin Office"),
+        #     ("Admin Office", "Storage"),
+        #     ("ICU 1", "Washroom A"),
+        #     ("ICU 2", "Washroom B"),
+        #     ("Ambulance Bay", "Emergency Room"),
+        #     ("Pharmacy", "Washroom A"),
+        # ]
+        #
+        # for room1, room2 in example_adjacencies:
+        #     self.adjacencies_listbox.insert(tk.END, f"{room1} - {room2}")
 
     def clear_all_data(self):
         for item in self.regions_tree.get_children():
@@ -2561,5 +2588,9 @@ def main():
     root.mainloop()
 
 
+
+
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    app = FloorPlanGUI(root)
+    root.mainloop()
